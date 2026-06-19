@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Makerspace Inventory Map</title>
+<style>
+  :root {
+    --bg: #FAFAF8;
+    --panel: #FFFFFF;
+    --border: #E2E0DA;
+    --text-primary: #1F1F1D;
+    --text-secondary: #6B6963;
+    --text-tertiary: #9C9A93;
+    --m212-bg: #B5D4F4;
+    --m212-text: #0C447C;
+    --m212-tile: #EAF3FC;
+    --m214-bg: #9FE1CB;
+    --m214-text: #085041;
+    --m214-tile: #E7F8F1;
+    --accent: #1F1F1D;
+    --highlight: #FDE68A;
+    --radius-lg: 14px;
+    --radius-md: 8px;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--text-primary);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 4rem;
+  }
+
+  /* ---------- Header ---------- */
+  header {
+    margin-bottom: 2rem;
+  }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    margin-bottom: 8px;
+  }
+  h1 {
+    font-size: clamp(28px, 4vw, 38px);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+  }
+  .subhead {
+    font-size: 15px;
+    color: var(--text-secondary);
+    max-width: 560px;
+  }
+  .room-key {
+    display: flex;
+    gap: 16px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+  }
+  .room-key span {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .dot.m212 { background: var(--m212-bg); }
+  .dot.m214 { background: var(--m214-bg); }
+  .last-updated {
+    font-size: 11.5px;
+    color: var(--text-tertiary);
+    margin-top: 10px;
+  }
+  .load-error {
+    grid-column: 1 / -1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 13.5px;
+  }
+  .load-error strong { display: block; color: var(--text-primary); margin-bottom: 6px; font-size: 14.5px; }
+  .load-error code { background: var(--bg); padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 12px; }
+
+  /* ---------- Search ---------- */
+  .search-wrap {
+    position: relative;
+    margin-bottom: 14px;
+  }
+  .search-wrap svg {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 17px;
+    height: 17px;
+    color: var(--text-tertiary);
+    pointer-events: none;
+  }
+  #searchInput {
+    width: 100%;
+    padding: 13px 40px 13px 40px;
+    font-size: 15px;
+    font-family: var(--font-sans);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text-primary);
+  }
+  #searchInput:focus {
+    outline: none;
+    border-color: var(--text-primary);
+  }
+  #searchInput::placeholder { color: var(--text-tertiary); }
+  .clear-btn {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    font-size: 18px;
+    display: none;
+    padding: 4px 8px;
+    line-height: 1;
+  }
+  .clear-btn.visible { display: block; }
+  .clear-btn:hover { color: var(--text-primary); }
+
+  .search-results {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    display: none;
+  }
+  .search-results.visible { display: block; }
+  .results-title {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+    padding-left: 4px;
+  }
+  .results-title strong { color: var(--text-primary); }
+  .result-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 8px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+  }
+  .result-item:hover { background: var(--bg); }
+  .result-name { font-size: 13.5px; flex: 1; }
+  .result-name mark { background: var(--highlight); border-radius: 2px; padding: 0 1px; }
+  .result-qty { font-size: 11.5px; color: var(--text-secondary); white-space: nowrap; }
+  .result-badge {
+    font-size: 10.5px;
+    border-radius: 20px;
+    padding: 3px 9px;
+    white-space: nowrap;
+  }
+  .no-results { font-size: 13px; color: var(--text-secondary); text-align: center; padding: 14px 0; }
+
+  /* ---------- Rooms grid ---------- */
+  .rooms-wrap {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 1.5rem;
+  }
+  @media (max-width: 720px) {
+    .rooms-wrap { grid-template-columns: 1fr; }
+  }
+  .room {
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    background: var(--panel);
+  }
+  .room-header {
+    padding: 13px 16px;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .room-header .count {
+    font-size: 11.5px;
+    font-weight: 500;
+    opacity: 0.75;
+  }
+  .zone-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .zone {
+    cursor: pointer;
+    padding: 18px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-align: center;
+    transition: filter 0.12s, transform 0.1s;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .zone:nth-child(2n) { border-right: none; }
+  .zone:hover { filter: brightness(0.96); }
+  .zone.selected { box-shadow: inset 0 0 0 2px var(--text-primary); }
+  .zone.dimmed { opacity: 0.32; }
+  .zone.highlighted { box-shadow: inset 0 0 0 2px #D97706; }
+  .zone-icon-wrap {
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .zone-icon-wrap svg { width: 19px; height: 19px; }
+  .zone-label { font-size: 12.5px; font-weight: 600; line-height: 1.25; }
+  .zone-badge {
+    font-size: 10.5px;
+    border-radius: 20px;
+    padding: 2px 8px;
+    margin-top: 1px;
+  }
+
+  /* ---------- Panel ---------- */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+  }
+  .panel-placeholder {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    color: var(--text-tertiary);
+    font-size: 13.5px;
+  }
+  .panel-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1.1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-icon-wrap {
+    width: 42px; height: 42px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .panel-icon-wrap svg { width: 21px; height: 21px; }
+  .panel-title { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+  .panel-title .room-tag { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-left: 6px; }
+  .panel-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: 2px; }
+
+  .section-label {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-tertiary);
+    margin: 18px 0 8px;
+  }
+  .section-label:first-child { margin-top: 0; }
+  .material-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 6px;
+    border-radius: 6px;
+    font-size: 13.5px;
+  }
+  .material-row.match { background: #FEF9C3; }
+  .material-row .bullet {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--text-tertiary);
+    flex-shrink: 0;
+  }
+  .material-row .name { flex: 1; }
+  .material-row .name mark { background: var(--highlight); border-radius: 2px; padding: 0 1px; }
+  .material-row .qty { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+  .swatch {
+    width: 16px; height: 16px;
+    border-radius: 4px;
+    border: 1px solid rgba(0,0,0,0.12);
+    flex-shrink: 0;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.25);
+  }
+
+  footer {
+    margin-top: 2.5rem;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="eyebrow">ASB Makerspace · 2025–2026</div>
+    <h1>Makerspace Inventory Map</h1>
+    <p class="subhead">An interactive guide to equipment, tools, and materials across both Makerspace rooms. Search for an item or browse by zone.</p>
+    <div class="room-key">
+      <span><span class="dot m212"></span> M212</span>
+      <span><span class="dot m214"></span> M214</span>
+    </div>
+    <p id="lastUpdated" class="last-updated">Loading inventory…</p>
+  </header>
+
+  <div class="search-wrap">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input id="searchInput" type="text" placeholder="Search the inventory — try “solder”, “filament”, “fabric”…" autocomplete="off" />
+    <button class="clear-btn" id="clearBtn" aria-label="Clear search">&times;</button>
+  </div>
+
+  <div class="search-results" id="searchResults"></div>
+
+  <div class="rooms-wrap" id="roomsWrap"></div>
+
+  <div class="panel" id="panel">
+    <p class="panel-placeholder">Click any zone above to view its full materials list.</p>
+  </div>
+
+  <footer>Questions or project ideas? Reach out to akitch@asbarcelona.com</footer>
+</div>
+
+<script>
+/* ---------- Icon set (Tabler-style strokes, inline SVG) ---------- */
+const ICONS = {
+  box: '<path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/>',
+  cut: '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/>',
+  needle: '<path d="M19 7l-9 9"/><path d="M8 16l-3 3"/><circle cx="20" cy="6" r="2"/><path d="M12 13l-2-2"/>',
+  package: '<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>',
+  circuit: '<rect x="4" y="4" width="16" height="16" rx="2"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="9" r="1"/><circle cx="9" cy="15" r="1"/><circle cx="15" cy="15" r="1"/><path d="M9 4v2"/><path d="M15 4v2"/><path d="M9 18v2"/><path d="M15 18v2"/>',
+  ruler: '<path d="M3 16l5-5 12 12H8z"/><path d="M14.5 8.5l1 1"/><path d="M17.5 5.5l1 1"/><path d="M11.5 11.5l1 1"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  shirt: '<path d="M8 4l4 2 4-2 4 4-3 3v11H7V11L4 8z"/>',
+  door: '<rect x="5" y="3" width="14" height="18" rx="1"/><circle cx="15" cy="12" r="1"/>'
+};
+function icon(name, size=19) {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="${size}" height="${size}">${ICONS[name]}</svg>`;
+}
+
+/* ---------- Data ---------- */
+/* ---------- Room & zone metadata (icons/colors only — items come from the sheet) ---------- */
+const ROOM_META = {
+  "M212": { id: "m212", label: "M212", headerBg: "#B5D4F4", headerColor: "#0C447C", tile: "#EAF3FC" },
+  "M214": { id: "m214", label: "M214", headerBg: "#9FE1CB", headerColor: "#085041", tile: "#E7F8F1" },
+};
+const ZONE_ORDER = {
+  "M212": ["3D Printing", "Vinyl Cutting", "Sewing & Textiles", "General Supplies"],
+  "M214": ["Electronics & Soldering", "Hardware / Construction", "Laser Cutting & Engraving", "Locked Storage", "Sublimation Printing"],
+};
+const ZONE_ICON = {
+  "3D Printing": "box",
+  "Vinyl Cutting": "cut",
+  "Sewing & Textiles": "needle",
+  "General Supplies": "package",
+  "Electronics & Soldering": "circuit",
+  "Hardware / Construction": "ruler",
+  "Laser Cutting & Engraving": "cut",
+  "Locked Storage": "lock",
+  "Sublimation Printing": "shirt",
+};
+function zoneSlug(name) { return name.toLowerCase().replace(/[^a-z0-9]+/g, ""); }
+
+/* ---------- Google Sheet source ---------- */
+// Replace this with your sheet's published CSV link:
+// File -> Share -> Publish to web -> select the Inventory tab -> CSV -> Publish, then paste the link below.
+const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQNKaiT4fm_4chqE11_LVrgdqgGPakzCgJEAEfIY1bdfuBDip6drDG5ojVatLDPWg/pub?gid=1044513179&single=true&output=csv";
+
+let rooms = [];
+
+function parseCSV(text) {
+  const rows = [];
+  let row = [], cur = "", inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i], next = text[i + 1];
+    if (inQuotes) {
+      if (c === '"' && next === '"') { cur += '"'; i++; }
+      else if (c === '"') { inQuotes = false; }
+      else { cur += c; }
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(cur); cur = ""; }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && next === '\n') i++;
+        row.push(cur); cur = "";
+        if (row.length > 1 || row[0] !== "") rows.push(row);
+        row = [];
+      } else { cur += c; }
+    }
+  }
+  if (cur !== "" || row.length) { row.push(cur); rows.push(row); }
+  return rows;
+}
+
+function buildRoomsFromRecords(records) {
+  const byRoom = {};
+  records.forEach(rec => {
+    const roomKey = (rec["Room"] || "").trim();
+    const zoneName = (rec["Zone"] || "").trim();
+    const itemName = (rec["Item Name"] || "").trim();
+    if (!roomKey || !zoneName || !itemName) return;
+    const meta = ROOM_META[roomKey];
+    if (!meta) return;
+    if (!byRoom[roomKey]) byRoom[roomKey] = {};
+    if (!byRoom[roomKey][zoneName]) byRoom[roomKey][zoneName] = [];
+    const qty = (rec["Quantity"] || "").trim();
+    const color = (rec["Color (hex, optional)"] || "").trim();
+    const sec = (rec["Section"] || "").trim();
+    byRoom[roomKey][zoneName].push({
+      name: itemName,
+      qty: qty,
+      sec: sec,
+      swatch: color || undefined,
+    });
+  });
+
+  const result = [];
+  Object.keys(ROOM_META).forEach(roomKey => {
+    const meta = ROOM_META[roomKey];
+    const zoneNames = ZONE_ORDER[roomKey] || Object.keys(byRoom[roomKey] || {});
+    const zones = zoneNames
+      .filter(zn => byRoom[roomKey] && byRoom[roomKey][zn])
+      .map(zn => ({
+        id: zoneSlug(zn),
+        label: zn,
+        icon: ZONE_ICON[zn] || "package",
+        materials: byRoom[roomKey][zn],
+      }));
+    result.push({ ...meta, zones });
+  });
+  return result;
+}
+
+function recordsFromCSV(rowsRaw) {
+  if (!rowsRaw.length) return [];
+  const headers = rowsRaw[0].map(h => h.trim());
+  return rowsRaw.slice(1).map(r => {
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = r[i] || "");
+    return obj;
+  });
+}
+
+async function loadInventory() {
+  const wrap = document.getElementById("roomsWrap");
+  try {
+    if (!SHEET_CSV_URL || SHEET_CSV_URL.indexOf("PASTE_YOUR") === 0) {
+      throw new Error("no-url");
+    }
+    const res = await fetch(SHEET_CSV_URL, { cache: "no-store" });
+    if (!res.ok) throw new Error("fetch-failed");
+    const text = await res.text();
+    const rowsRaw = parseCSV(text);
+    const records = recordsFromCSV(rowsRaw);
+    rooms = buildRoomsFromRecords(records);
+    if (!rooms.some(r => r.zones.length)) throw new Error("empty");
+    buildRooms();
+    const stamp = document.getElementById("lastUpdated");
+    if (stamp) stamp.textContent = "Loaded from live inventory sheet · " + new Date().toLocaleString();
+  } catch (err) {
+    wrap.innerHTML = `<div class="load-error">
+      <strong>Couldn't load the live inventory sheet.</strong>
+      <p>Check that <code>SHEET_CSV_URL</code> is set to your sheet's published CSV link, and that the sheet is published to the web.</p>
+    </div>`;
+  }
+}
+
+
+/* ---------- State ---------- */
+let selected = null;
+let currentQuery = "";
+
+function findZone(zid) {
+  for (const r of rooms) {
+    const z = r.zones.find(x => x.id === zid);
+    if (z) return { zone: z, room: r };
+  }
+  return null;
+}
+
+/* ---------- Build rooms grid ---------- */
+function buildRooms() {
+  const wrap = document.getElementById("roomsWrap");
+  wrap.innerHTML = "";
+  rooms.forEach(room => {
+    const roomEl = document.createElement("div");
+    roomEl.className = "room";
+
+    const header = document.createElement("div");
+    header.className = "room-header";
+    header.style.background = room.headerBg;
+    header.style.color = room.headerColor;
+    const totalItems = room.zones.reduce((sum, z) => sum + z.materials.length, 0);
+    header.innerHTML = `<span>${icon('door',16)} ${room.label}</span><span class="count">${totalItems} items</span>`;
+    header.querySelector('span').style.display = 'inline-flex';
+    header.querySelector('span').style.alignItems = 'center';
+    header.querySelector('span').style.gap = '6px';
+    roomEl.appendChild(header);
+
+    const grid = document.createElement("div");
+    grid.className = "zone-grid";
+    room.zones.forEach(z => {
+      const el = document.createElement("div");
+      el.className = "zone";
+      el.id = "zone-" + z.id;
+      el.innerHTML = `
+        <div class="zone-icon-wrap" style="background:${room.headerBg};color:${room.headerColor}">${icon(z.icon)}</div>
+        <span class="zone-label">${z.label}</span>
+        <span class="zone-badge" id="badge-${z.id}" style="background:${room.tile};color:${room.headerColor}">${z.materials.length} items</span>
+      `;
+      el.addEventListener("click", () => { clearSearch(); selectZone(z.id); });
+      grid.appendChild(el);
+    });
+    roomEl.appendChild(grid);
+    wrap.appendChild(roomEl);
+  });
+}
+
+function selectZone(zid) {
+  if (selected) document.getElementById("zone-" + selected)?.classList.remove("selected");
+  selected = zid;
+  document.getElementById("zone-" + zid)?.classList.add("selected");
+  renderPanel(zid, currentQuery);
+  document.getElementById("panel").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function renderPanel(zid, query) {
+  const { zone: z, room: r } = findZone(zid);
+  const panel = document.getElementById("panel");
+  panel.innerHTML = `
+    <div class="panel-header">
+      <div class="panel-icon-wrap" style="background:${r.headerBg};color:${r.headerColor}">${icon(z.icon, 21)}</div>
+      <div>
+        <div class="panel-title">${z.label}<span class="room-tag">${r.label}</span></div>
+        <div class="panel-sub">${z.materials.length} items listed</div>
+      </div>
+    </div>
+    <div id="mlist-${z.id}"></div>
+  `;
+  renderList(zid, query);
+}
+
+function highlightText(text, query) {
+  if (!query) return text;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return text.replace(new RegExp(`(${escaped})`, 'gi'), '<mark>$1</mark>');
+}
+
+function renderList(zid, query) {
+  const { zone: z } = findZone(zid);
+  const list = document.getElementById("mlist-" + zid);
+  if (!list) return;
+  list.innerHTML = "";
+  let lastSec = null;
+  z.materials.forEach(m => {
+    if (m.sec && m.sec !== lastSec) {
+      const lbl = document.createElement("div");
+      lbl.className = "section-label";
+      lbl.textContent = m.sec;
+      list.appendChild(lbl);
+      lastSec = m.sec;
+    }
+    const isMatch = query && m.name.toLowerCase().includes(query.toLowerCase());
+    const row = document.createElement("div");
+    row.className = "material-row" + (isMatch ? " match" : "");
+    const swatchHtml = m.swatch ? `<span class="swatch" style="background:${m.swatch}" title="${m.swatch}"></span>` : '<span class="bullet"></span>';
+    row.innerHTML = `${swatchHtml}<span class="name">${highlightText(m.name, query)}</span>${m.qty ? `<span class="qty">${m.qty}</span>` : ''}`;
+    list.appendChild(row);
+  });
+}
+
+/* ---------- Search ---------- */
+function doSearch(query) {
+  currentQuery = query;
+  const resultsEl = document.getElementById("searchResults");
+  const clearBtn = document.getElementById("clearBtn");
+  clearBtn.classList.toggle("visible", query.length > 0);
+  document.querySelectorAll(".zone").forEach(el => el.classList.remove("dimmed", "highlighted"));
+
+  if (!query.trim()) {
+    resultsEl.classList.remove("visible");
+    resultsEl.innerHTML = "";
+    if (selected) renderPanel(selected, "");
+    return;
+  }
+
+  const q = query.toLowerCase();
+  const matches = [];
+  const matchedZoneIds = new Set();
+  rooms.forEach(room => {
+    room.zones.forEach(z => {
+      z.materials.forEach(m => {
+        if (m.name.toLowerCase().includes(q)) {
+          matches.push({ zone: z, room, item: m });
+          matchedZoneIds.add(z.id);
+        }
+      });
+    });
+  });
+
+  rooms.forEach(room => {
+    room.zones.forEach(z => {
+      const el = document.getElementById("zone-" + z.id);
+      if (!el) return;
+      if (matchedZoneIds.has(z.id)) el.classList.add("highlighted");
+      else el.classList.add("dimmed");
+    });
+  });
+
+  resultsEl.classList.add("visible");
+  if (matches.length === 0) {
+    resultsEl.innerHTML = `<div class="no-results">No items found for "<strong>${query}</strong>"</div>`;
+  } else {
+    resultsEl.innerHTML = `<div class="results-title">${matches.length} result${matches.length !== 1 ? 's' : ''} for "<strong>${query}</strong>" — click to jump to zone</div>` +
+      matches.map(({ zone: z, room: r, item: m }) => `
+        <div class="result-item" onclick="jumpToZone('${z.id}')">
+          ${m.swatch ? `<span class="swatch" style="background:${m.swatch}"></span>` : `<div class="zone-icon-wrap" style="width:30px;height:30px;background:${r.headerBg};color:${r.headerColor}">${icon(z.icon, 15)}</div>`}
+          <span class="result-name">${highlightText(m.name, query)}</span>
+          ${m.qty ? `<span class="result-qty">${m.qty}</span>` : ''}
+          <span class="result-badge" style="background:${r.tile};color:${r.headerColor}">${r.label} · ${z.label}</span>
+        </div>`).join("");
+  }
+
+  if (selected) renderPanel(selected, query);
+}
+
+function jumpToZone(zid) {
+  if (selected) document.getElementById("zone-" + selected)?.classList.remove("selected");
+  selected = zid;
+  document.querySelectorAll(".zone").forEach(el => el.classList.remove("selected"));
+  document.getElementById("zone-" + zid)?.classList.add("selected");
+  renderPanel(zid, currentQuery);
+  document.getElementById("panel").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function clearSearch() {
+  document.getElementById("searchInput").value = "";
+  doSearch("");
+}
+
+document.getElementById("searchInput").addEventListener("input", e => doSearch(e.target.value));
+document.getElementById("clearBtn").addEventListener("click", () => { clearSearch(); document.getElementById("searchInput").focus(); });
+
+loadInventory();
+</script>
+</body>
+</html>
